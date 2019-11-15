@@ -16,7 +16,6 @@ import warnings
 import random as rn
 import tensorflow as tf
 from keras.models import load_model
-import keras
 import os
 import gc
 from tqdm import tqdm
@@ -192,18 +191,8 @@ def create_features(df, deploy=False):
                          .reset_index()
         defense_summary.columns = ['GameId','PlayId','def_min_dist','def_max_dist','def_mean_dist','def_std_dist']
 
-        num_def = 11
-        for i in range(num_def):
-            defense= df[df['Team'] != df['RusherTeam']][i::11][['GameId','PlayId','X','Y','S','A','Dir','dist_from_rusher']]  # Rusherに最も近いDefense
-            defense.columns = ['GameId','PlayId','X_def%d'%i,'Y_def%d'%i,'S_def%d'%i,'A_def%d'%i,'Dir_def%d'%i,'dist_from_rusher_def%d'%i]
-            defense_summary = pd.merge(defense_summary, defense, on=['GameId','PlayId'], how='inner')
-
-        num_off = 10
-        for i in range(num_off):
-            offense= df[df['Team'] == df['RusherTeam']][(i+1)::11][['GameId','PlayId','X','Y','S','A','Dir','dist_from_rusher']]  # Rusherに最も近いDefense
-            offense.columns = ['GameId','PlayId','X_off%d'%i,'Y_off%d'%i,'S_off%d'%i,'A_off%d'%i,'Dir_off%d'%i,'dist_from_rusher_off%d'%i]
-            defense_summary = pd.merge(defense_summary, offense, on=['GameId','PlayId'], how='inner')
-
+#         defense_closest = df[df['Team'] != df['RusherTeam']][::11][['GameId','PlayId','X','Y','S','A','Dis','Orientation','Dir']]  # Rusherに最も近いDefense
+#         defense_closest.columns = ['GameId','PlayId','X_def_closest','Y_def_closest','S_def_closest','A_def_closest','Dis_def_closest','Orientation_def_closest','Dir_def_closest']
 
 #         offense_closest = df[df['Team'] == df['RusherTeam']][1::11][['GameId','PlayId','X','Y','S','A','Dis','Orientation','Dir']]  # Rusherに最も近いOffense
 #         offense_closest.columns = ['GameId','PlayId','X_off_closest','Y_off_closest','S_off_closest','A_off_closest','Dis_off_closest','Orientation_off_closest','Dir_def_closest']
@@ -235,19 +224,11 @@ def create_features(df, deploy=False):
 
 
     def static_features(df):
-        static_features = df[df['NflId'] == df['NflIdRusher']][[
-            'GameId','PlayId','Team','X','Y','S','A','Dis','Orientation','Dir','OffenseFormation',
-            'YardLine','Quarter','Down','Distance','DefendersInTheBox','PlayerHeight','PlayerWeight','NflId','NflIdRusher','HomeScoreBeforePlay','VisitorScoreBeforePlay',
-            'DefensePersonnel','OffensePersonnel',
-            'Season']].drop_duplicates()
-
-        # qb = df[df['Position']=='QB'][['GameId','PlayId','X','Y','S','A','Dis','Orientation','Dir']]
-        # qb.columns = ['GameId','PlayId','X_qb','Y_qb','S_qb','A_qb','Dis_qb','Orientation_qb','Dir_qb']
-        # static_features = pd.merge(static_features, qb, on=['GameId','PlayId'], how='outer')
-        # qb_features = ['X_qb','Y_qb','S_qb','A_qb','Dis_qb','Orientation_qb','Dir_qb']
-        # static_features[qb_features] = static_features[qb_features].fillna(static_features[qb_features].mean())
-
-
+        static_features = df[df['NflId'] == df['NflIdRusher']][['GameId','PlayId','Team','X','Y','S','A','Dis','Orientation','Dir','OffenseFormation',
+                                                            'YardLine','Quarter','Down','Distance','DefendersInTheBox','PlayerHeight','PlayerWeight','NflId','NflIdRusher','HomeScoreBeforePlay','VisitorScoreBeforePlay',
+                                                            'DefensePersonnel',
+                                                            'OffensePersonnel',
+                                                            'Season']].drop_duplicates()
         static_features['DefendersInTheBox'] = static_features['DefendersInTheBox'].fillna(np.mean(static_features['DefendersInTheBox']))
 
         static_features['4th_Down'] = (static_features.Down==4) * 1
@@ -426,37 +407,8 @@ for idx, target in enumerate(list(yards)):
 cat = ['back_oriented_down_field', 'back_moving_down_field', 'OffenseFormation','4th_above','4th_behind'] # ,'DefensePersonnel','OffensePersonnel']
 
 num = ['back_from_scrimmage', 'min_dist', 'max_dist', 'mean_dist', 'std_dist',
-       'def_min_dist', 'def_max_dist', 'def_mean_dist', 'def_std_dist',
-       'X', 'Y', 'S', 'A', 'Dis', 'Orientation', 'Dir', 'YardLine','Diff_Score']
-
-cols_def = ['X_def','Y_def','S_def','A_def','Dir_def','dist_from_rusher_def']
-cols_def1 = [col+'%d'%n for n in range(3) for col in cols_def]
-cols_def2 = [col+'%d'%n for n in range(3,7) for col in cols_def]
-cols_def3 = [col+'%d'%n for n in range(7,12) for col in cols_def]
-
-# for n in range(3):
-#     cols_def_list.append([col+'%d'%n for col in cols_def])
-
-
-cols_off = ['X_off','Y_off','S_off','A_off','Dir_off','dist_from_rusher_off']
-cols_off1 = [col+'%d'%n for n in range(3) for col in cols_off]
-cols_off2 = [col+'%d'%n for n in range(3,7) for col in cols_off]
-cols_off3 = [col+'%d'%n for n in range(7,11) for col in cols_off]
-# for n in range(3):
-#     cols_off_list.append([col+'%d'%n for col in cols_off])
-
-# for cols_def in cols_def_list:
-#     num = num + cols_def
-# for cols_off in cols_off_list:
-#     num = num + cols_off
-
-num = num + cols_def1 + cols_def2 + cols_def3 + cols_off1 +cols_off2 + cols_off3
-
-num_1 = ['X','Y', 'S', 'A', 'Dis', 'Orientation', 'Dir']
-num_2 = ['back_from_scrimmage', 'min_dist', 'max_dist', 'mean_dist', 'std_dist',
-       'def_min_dist', 'def_max_dist', 'def_mean_dist', 'def_std_dist','YardLine','Diff_Score']
-
-#assert set(num)==set(num_1+num_2)
+       'def_min_dist', 'def_max_dist', 'def_mean_dist', 'def_std_dist', 'X',
+       'Y', 'S', 'A', 'Dis', 'Orientation', 'Dir', 'YardLine']
 
 
 le_list = []
@@ -467,144 +419,76 @@ for c in cat:
     le_list.append((c,le))
 
 
+
 # scaler_s_2017 = StandardScaler()
 # X.loc[X.Season==2017, ['S']] = scaler_s_2017.fit_transform(X.loc[X.Season==2017, ['S']])
 
 # scaler_s = StandardScaler()
 # X.loc[X.Season==2018, ['S']] = scaler_s.fit_transform(X.loc[X.Season==2018, ['S']])
 
+
 scaler = StandardScaler()
 X[num] = scaler.fit_transform(X[num])
 
 
-
-def model_NN():
-    input_list = []
-    embedding_list = []
+def model_396_1():
+    inputs = []
+    embeddings = []
     for i in cat:
         input_ = Input(shape=(1,))
         embedding = Embedding(int(np.absolute(X[i]).max() + 1), 10, input_length=1)(input_)
         embedding = Reshape(target_shape=(10,))(embedding)
-        input_list.append(input_)
-        embedding_list.append(embedding)
-
-    input_numeric_1 = Input(shape=(len(num_1),))
-    input_list.append(input_numeric_1)
-
-    input_numeric_2 = Input(shape=(len(num_2),))
-    input_list.append(input_numeric_2)
-
-    input_def1 = Input(shape=(len(cols_def1),))
-    input_def2 = Input(shape=(len(cols_def2),))
-    input_def3 = Input(shape=(len(cols_def3),))
-    input_list.append(input_def1)
-    input_list.append(input_def2)
-    input_list.append(input_def3)
-
-    input_off1 = Input(shape=(len(cols_off1),))
-    input_off2 = Input(shape=(len(cols_off2),))
-    input_off3 = Input(shape=(len(cols_off3),))
-    input_list.append(input_off1)
-    input_list.append(input_off2)
-    input_list.append(input_off3)
-
-    x = Concatenate()(embedding_list+[input_numeric_1]+[input_def1])
-    x = Dense(512, activation='relu')(x)
-    x = Concatenate()([x, input_def2])
+        inputs.append(input_)
+        embeddings.append(embedding)
+    input_numeric = Input(shape=(len(num),))
+    embedding_numeric = Dense(512, activation='relu')(input_numeric)
+    inputs.append(input_numeric)
+    embeddings.append(embedding_numeric)
+    x = Concatenate()(embeddings)
     x = Dense(256, activation='relu')(x)
-    x = Concatenate()([x, input_def3])
-    x = Dense(256, activation='relu')(x)
-
-    # x_def = Dense(6, activation='relu')(input_def)
-    # #x_def = Dense(16, activation='relu')(x_def)
-
-    # input_off = Input(shape=(len(cols_off),))
-    # input_list.append(input_off)
-    # x_off = Dense(6, activation='relu')(input_off)
-    #x_off = Dense(16, activation='relu')(x_off)
-
-
-    # x_def_list = []
-    # for n in range(3):
-    #     input_ = Input(shape=(6,))
-    #     input_list.append(input_)
-    #     x = Concatenate()([input_numeric_1]+[input_])
-    #     x = Dense(6, activation='relu')(x)
-    #     #x = Dense(5, activation='relu')(x)
-    #     x_def_list.append(x)
-
-    # x_off_list = []
-    # for n in range(3):
-    #     input_ = Input(shape=(6,))
-    #     input_list.append(input_)
-    #     x = Concatenate()([input_numeric_1]+[input_])
-    #     x = Dense(6, activation='relu')(x)
-    #     #x = Dense(5, activation='relu')(x)
-    #     x_off_list.append(x)
-
-
-    x = Concatenate()(x+[input_numeric_2])
-    x = Dense(256, activation='relu')(x)
+    x = Dense(128, activation='relu')(x)
     x = Dropout(0.5)(x)
     output = Dense(199, activation='softmax')(x)
-    model = Model(input_list, output)
+    model = Model(inputs, output)
     return model
 
 
-from sklearn.model_selection import GroupShuffleSplit
 n_splits = 5
-#kf = GroupKFold(n_splits=n_splits)
-kf = GroupShuffleSplit(n_splits=n_splits, random_state=529)
+kf = GroupKFold(n_splits=n_splits)
 score = []
-for i_, (tdx, vdx) in enumerate(kf.split(X, y, X['GameId'])):
-    print(f'Fold : {i_+1}')
+for i_369, (tdx, vdx) in enumerate(kf.split(X, y, X['GameId'])):
+    print(f'Fold : {i_369}')
     X_train, X_val, y_train, y_val = X.iloc[tdx], X.iloc[vdx], y[tdx], y[vdx]
-
-    X_train = [np.absolute(X_train[i]) for i in cat] + [X_train[num_1], X_train[num_2], X_train[cols_def1], X_train[cols_def2], X_train[cols_def3], X_train[cols_off1], X_train[cols_off2], X_train[cols_off3]]
-    X_val = [np.absolute(X_val[i]) for i in cat] + [X_val[num_1], X_val[num_2], X_val[cols_def1], X_val[cols_def2], X_val[cols_def3], X_val[cols_off1], X_val[cols_off2], X_val[cols_off3]]
-
-    # X_train = [np.absolute(X_train[i]) for i in cat] + [X_train[num_1]] + [X_train[c] for c in cols_def_list] + [X_train[c] for c in cols_off_list] + [X_train[num_2]]
-    # X_val = [np.absolute(X_val[i]) for i in cat] + [X_val[num_1]] + [X_val[c] for c in cols_def_list] + [X_val[c] for c in cols_off_list] +[X_val[num_2]]
-    model = model_NN()
+    X_train = [np.absolute(X_train[i]) for i in cat] + [X_train[num]]
+    X_val = [np.absolute(X_val[i]) for i in cat] + [X_val[num]]
+    model = model_396_1()
     model.compile(optimizer='Adam', loss='categorical_crossentropy', metrics=[])
-
     es = EarlyStopping(monitor='val_CRPS',
                    mode='min',
                    restore_best_weights=True,
                    verbose=2,
                    patience=5)
     es.set_model(model)
-
-    # cb = keras.callbacks.ReduceLROnPlateau(
-    #         monitor='val_CRPS',
-    #         factor=0.01,
-    #         patience=5
-    #     )
-
     metric = Metric(model, [es], [(X_train,y_train), (X_val,y_val)])
-
-    # for i in range(1):
-    #     model.fit(X_train, y_train, verbose=False)
-    # for i in range(1):
-    #     model.fit(X_train, y_train, batch_size=64, verbose=False)
-    # for i in range(1):
-    #     model.fit(X_train, y_train, batch_size=128, verbose=False)
-    # for i in range(1):
-    #     model.fit(X_train, y_train, batch_size=256, verbose=False)
+    for i in range(1):
+        model.fit(X_train, y_train, verbose=False)
+    for i in range(1):
+        model.fit(X_train, y_train, batch_size=64, verbose=False)
+    for i in range(1):
+        model.fit(X_train, y_train, batch_size=128, verbose=False)
+    for i in range(1):
+        model.fit(X_train, y_train, batch_size=256, verbose=False)
     model.fit(X_train, y_train, callbacks=[metric], epochs=100, batch_size=1024, verbose=False)
-    #model.fit(X_train, y_train, callbacks=[es,], epochs=100, batch_size=1024, verbose=False)
-
-    pred = model.predict(X_val)
     score_ = crps(y_val, model.predict(X_val))
-    model.save(f'keras_{i_}.h5')
+    model.save(f'keras_369_{i_369}.h5')
     print(score_)
     score.append(score_)
 
 
 print('CV score: ', np.mean(score))
 
+
 output = pd.read_csv('output.csv')
 output_tmp = pd.DataFrame({'file': [os.path.basename(__file__)], 'CV_score': [np.mean(score)], 'LB': [np.nan]})
 output = output.append(output_tmp)
 output.to_csv('output.csv', index=False)
-
