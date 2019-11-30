@@ -187,10 +187,63 @@ def create_features(df, deploy=False):
         df['dist_from_rusher'] = df[['X','Y','RusherX','RusherY']].apply(lambda x: euclidean_distance(x[0],x[1],x[2],x[3]), axis=1)
         df = df.sort_values(by=['GameId','PlayId','dist_from_rusher'])
 
-        defense_summary = df[df['Team'] != df['RusherTeam']].groupby(['GameId','PlayId'])\
-                         .agg({'dist_from_rusher':['min','max','mean','std']})\
+        df_summary = df[df['Team'] != df['RusherTeam']].groupby(['GameId','PlayId'])\
+                         .agg({
+                             'dist_from_rusher':['min','max','mean','std'],
+                             'X':['min','max','mean','std'],
+                             'Y':['min','max','mean','std'],
+                         })\
                          .reset_index()
-        defense_summary.columns = ['GameId','PlayId','def_min_dist','def_max_dist','def_mean_dist','def_std_dist']
+        df_summary.columns = ['GameId','PlayId','def_min_dist','def_max_dist','def_mean_dist','def_std_dist', 'def_min_X', 'def_max_X', 'def_mean_X', 'def_std_X', 'def_min_Y', 'def_max_Y', 'def_mean_Y', 'def_std_Y']
+
+        # Positionごと
+        map_defense = {'DE':'DL', 'DT':'DL','NG':'DL', 'NT':'DL', 'DL':'DL,',
+               'MLB':'LB','ILB':'LB','OLB':'LB','LB':'LB', 'CB':'LB',
+               'FS':'DB','SS':'DB', 'S':'DB', 'SAF':'DB', 'DB':'DB',
+               'FB':'Off','WR':'Off','G':'Off','C':'Off','OT':'Off'  # オフェンス！？
+               }
+        map_offense = {
+            'G':'OL','C':'OL','OG':'OL',
+            'T':'TE', 'TE':'TE', 'OT':'TE', # OLの端
+            'WR':'WR', # サイド
+            'RB':'RB', 'FB':'RB','HB':'RB',  # OLの後ろ、例えば縦に並ぶ
+            'QB':'QB',
+            'CB':'DL','OLB':'DL','NT':'DL','DE':'DL','DT':'DL','FS':'DL', # ディフェンス！？
+            }
+        df.loc[df['Team'] != df['RusherTeam'], 'Position'] = df.loc[df['Team'] != df['RusherTeam'], 'Position'].map(map_defense)
+        df.loc[df['Team'] == df['RusherTeam'], 'Position'] = df.loc[df['Team'] == df['RusherTeam'], 'Position'].map(map_offense)
+
+        for pos in ['DB','LB','DL']:
+            pos_def = df[(df['Team'] != df['RusherTeam']) & (df['Position']==pos)]\
+                .groupby(['GameId','PlayId'])\
+                .agg({
+                    'dist_from_rusher':['min','max','mean','std'],
+                    'X':['min','max','mean','std'],
+                    'Y':['min','max','mean','std'],
+                    })\
+                .reset_index()
+            pos_def.columns = ['GameId','PlayId','def_%s_min_dist'%pos,'def_%s_max_dist'%pos,'def_%s_mean_dist'%pos,'def_%s_std_dist'%pos,
+            'def_%s_min_X'%pos, 'def_%s_max_X'%pos, 'def_%s_mean_X'%pos, 'def_%s_std_X'%pos, 'def_%s_min_Y'%pos, 'def_%s_max_Y'%pos, 'def_%s_mean_Y'%pos, 'def_%s_std_Y'%pos]
+            pos_def.fillna(0, inplace=True)
+
+            df_summary = pd.merge(df_summary, pos_def, on=['GameId','PlayId'])
+
+        for pos in ['OL','RB','TE', 'WR']:
+            pos_off = df[(df['Team'] == df['RusherTeam']) & (df['Position']==pos)]\
+                .groupby(['GameId','PlayId'])\
+                .agg({
+                    'dist_from_rusher':['min','max','mean','std'],
+                    'X':['min','max','mean','std'],
+                    'Y':['min','max','mean','std'],
+                    })\
+                .reset_index()
+            pos_off.columns = ['GameId','PlayId','off_%s_min_dist'%pos,'off_%s_max_dist'%pos,'off_%s_mean_dist'%pos,'off_%s_std_dist'%pos,
+            'off_%s_min_X'%pos, 'off_%s_max_X'%pos, 'off_%s_mean_X'%pos, 'off_%s_std_X'%pos, 'off_%s_min_Y'%pos, 'off_%s_max_Y'%pos, 'off_%s_mean_Y'%pos, 'off_%s_std_Y'%pos]
+            pos_off.fillna(0, inplace=True)
+
+            df_summary = pd.merge(df_summary, pos_off, on=['GameId','PlayId'])
+
+
 
 #         defense_closest = df[df['Team'] != df['RusherTeam']][::11][['GameId','PlayId','X','Y','S','A','Dis','Orientation','Dir']]  # Rusherに最も近いDefense
 #         defense_closest.columns = ['GameId','PlayId','X_def_closest','Y_def_closest','S_def_closest','A_def_closest','Dis_def_closest','Orientation_def_closest','Dir_def_closest']
@@ -220,16 +273,15 @@ def create_features(df, deploy=False):
 #             df_nn.loc[df_nn['PlayId']==playid, 'X_minInVoronoi'] = vor.iloc[i].vertices[vor.iloc[i].regions[vor.iloc[i].point_region[0]]][:,0].min()  # Rusherのボロノイ領域の最小のx座標
 #             df_nn.loc[df_nn['PlayId']==playid, 'AreaInVoronoi'] = PolyArea(vor.iloc[i].vertices[vor.iloc[i].regions[vor.iloc[i].point_region[0]]])  # Rusherのボロノイ領域の面積
 
-        return defense_summary
+        return df_summary
 
 
 
     def static_features(df):
-        static_features = df[df['NflId'] == df['NflIdRusher']][['GameId','PlayId','Team','X','Y','S','A','Dis','Orientation','Dir','OffenseFormation',
-                                                            'YardLine','Quarter','Down','Distance','DefendersInTheBox','PlayerHeight','PlayerWeight','NflId','NflIdRusher','HomeScoreBeforePlay','VisitorScoreBeforePlay',
-                                                            'DefensePersonnel',
-                                                            'OffensePersonnel',
-                                                            'Season']].drop_duplicates()
+        static_features = df[df['NflId'] == df['NflIdRusher']][[
+            'GameId','PlayId','Team','X','Y','S','A','Dis','Orientation','Dir','OffenseFormation','YardLine','Quarter','Down','Distance','DefendersInTheBox','PlayerHeight','PlayerWeight','NflId','NflIdRusher','HomeScoreBeforePlay','VisitorScoreBeforePlay',
+            'DefensePersonnel','OffensePersonnel',
+            'Season']].drop_duplicates()
         static_features['DefendersInTheBox'] = static_features['DefendersInTheBox'].fillna(np.mean(static_features['DefendersInTheBox']))
 
         static_features['4th_Down'] = (static_features.Down==4) * 1
@@ -437,7 +489,7 @@ scaler = StandardScaler()
 X[num] = scaler.fit_transform(X[num])
 
 
-def model_396_1():
+def model_NN():
     input_list = []
     embedding_list = []
     for i in cat:
@@ -479,12 +531,12 @@ n_splits = 5
 #kf = GroupKFold(n_splits=n_splits)
 kf = GroupShuffleSplit(n_splits=n_splits, random_state=529)
 score = []
-for i_369, (tdx, vdx) in enumerate(kf.split(X, y, X['GameId'])):
-    print(f'Fold : {i_369+1}')
+for i_, (tdx, vdx) in enumerate(kf.split(X, y, X['GameId'])):
+    print(f'Fold : {i_+1}')
     X_train, X_val, y_train, y_val = X.iloc[tdx], X.iloc[vdx], y[tdx], y[vdx]
     X_train = [np.absolute(X_train[i]) for i in cat] + [X_train[num_1], X_train[num_2]]
     X_val = [np.absolute(X_val[i]) for i in cat] + [X_val[num_1], X_val[num_2]]
-    model = model_396_1()
+    model = model_NN()
     model.compile(optimizer='Adam', loss='categorical_crossentropy', metrics=[])
 
     es = EarlyStopping(monitor='val_CRPS',
@@ -515,7 +567,7 @@ for i_369, (tdx, vdx) in enumerate(kf.split(X, y, X['GameId'])):
 
     pred = model.predict(X_val)
     score_ = crps(y_val, model.predict(X_val))
-    model.save(f'keras_369_{i_369}.h5')
+    model.save(f'keras_{i_}.h5')
     print(score_)
     score.append(score_)
 

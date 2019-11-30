@@ -190,6 +190,22 @@ def create_features(df, deploy=False):
                          .reset_index()
         defense_summary.columns = ['GameId','PlayId','def_min_dist','def_max_dist','def_mean_dist','def_std_dist']
 
+        # offense_summary = df[(df['Team'] == df['RusherTeam'] & (df['NflId'] != df['NflIdRusher']))].groupby(['GameId','PlayId'])\
+        #                  .agg({'dist_from_rusher':['min','max','mean','std']})\
+        #                  .reset_index()
+        # offense_summary.columns = ['GameId','PlayId','off_min_dist','off_max_dist','off_mean_dist','off_std_dist']
+
+        # df_summary = pd.merge(defense_summary, offense_summary, on=['GameId','PlayId'])
+        # df_summary['def/off_min_dist'] = df_summary['def_min_dist'] / df_summary['off_min_dist']
+        # df_summary['def/off_min_mean_dist'] = df_summary['def_min_dist'] / df_summary['off_mean_dist']
+        # df_summary['off/def_min_mean_dist'] = df_summary['off_min_dist'] / df_summary['def_mean_dist']
+        # df_summary['def/off_max_dist'] = df_summary['def_max_dist'] / df_summary['off_max_dist']
+        # df_summary['def/off_max_mean_dist'] = df_summary['def_max_dist'] / df_summary['off_mean_dist']
+        # df_summary['off/def_max_mean_dist'] = df_summary['off_max_dist'] / df_summary['def_mean_dist']
+        # df_summary['def/off_max_min_dist'] = df_summary['def_max_dist'] / df_summary['off_min_dist']
+        # df_summary['off/def_max_min_dist'] = df_summary['off_max_dist'] / df_summary['def_min_dist']
+
+
 #         defense_closest = df[df['Team'] != df['RusherTeam']][::11][['GameId','PlayId','X','Y','S','A','Dis','Orientation','Dir']]  # Rusherに最も近いDefense
 #         defense_closest.columns = ['GameId','PlayId','X_def_closest','Y_def_closest','S_def_closest','A_def_closest','Dis_def_closest','Orientation_def_closest','Dir_def_closest']
 
@@ -223,8 +239,7 @@ def create_features(df, deploy=False):
 
 
     def static_features(df):
-        static_features = df[df['NflId'] == df['NflIdRusher']][['GameId','PlayId','X','Y','S','A','Dis','Orientation','Dir',
-                                                            'YardLine','Quarter','Down','Distance','DefendersInTheBox']].drop_duplicates()
+        static_features = df[df['NflId'] == df['NflIdRusher']][['GameId','PlayId','X','Y','S','A','Dis','Season','Orientation','Dir','YardLine','Quarter','Down','Distance','DefendersInTheBox']].drop_duplicates()
         static_features['DefendersInTheBox'] = static_features['DefendersInTheBox'].fillna(np.mean(static_features['DefendersInTheBox']))
 
         return static_features
@@ -367,6 +382,8 @@ def create_features(df, deploy=False):
 
 train_basetable = create_features(train, False)
 
+#train_basetable = train_basetable[train_basetable.Season==2018]
+
 X = train_basetable.copy()
 yards = X.Yards
 X = X.drop(['Yards'], axis=1)
@@ -394,6 +411,8 @@ cat = ['back_oriented_down_field', 'back_moving_down_field']
 num = ['back_from_scrimmage', 'min_dist', 'max_dist', 'mean_dist', 'std_dist',
        'def_min_dist', 'def_max_dist', 'def_mean_dist', 'def_std_dist', 'X',
        'Y', 'S', 'A', 'Dis', 'Orientation', 'Dir', 'YardLine']
+
+# num = num + ['def/off_min_dist','def/off_min_mean_dist','off/def_min_mean_dist','def/off_max_dist','def/off_max_mean_dist','off/def_max_mean_dist','def/off_max_min_dist','off/def_max_min_dist']
 
 scaler = StandardScaler()
 X[num] = scaler.fit_transform(X[num])
